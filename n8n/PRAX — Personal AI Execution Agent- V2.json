@@ -1,0 +1,1224 @@
+{
+  "name": "PRAX — Personal AI Execution Agent V2",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ⚙️ PRAX V2 — Setup Required\n\n### Step 1: Create Reminders Table\nGo to **Data → Create Data Table** called `PRAX Reminders`\nAdd columns:\n- `reminder_id` (text)\n- `chat_id` (text)\n- `reminder_text` (text)\n- `remind_at` (dateTime)\n- `status` (text)\n- `created_at` (dateTime)\n\n### Step 2: Find & Replace\n- `REPLACE_REMINDERS_TABLE_ID` → ID of your Reminders table\n- `REPLACE_YOUR_CHAT_ID` → Your Telegram chat ID\n\n### Step 3: Verify Cron Times\n- Morning briefing: 7:30 AM IST → `0 2 * * *` UTC\n- Reminder check: every 15 min → `*/15 * * * *`\n- Evening review: 11:00 PM IST → `30 17 * * *` UTC\n\nAdjust if your n8n server uses a different timezone.",
+        "height": 520,
+        "width": 420,
+        "color": 4
+      },
+      "id": "aa000001-0000-0000-0000-000000000001",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-520, -60]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "872e26ec-ce03-4366-a899-3e90ce2e2701",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [0, 200],
+      "webhookId": "70b910d5-aa91-4fab-9139-475303d982ee",
+      "credentials": {
+        "telegramApi": {
+          "id": "7ZqTLt9qkNgN4xhi",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Telegram Trigger').item.json.message.text }}",
+        "options": {
+          "systemMessage": "=You are PRAX, a personal AI execution agent for students and early-career professionals. You help manage tasks, schedules, deadlines, goals, habits, and reminders. You are friendly, concise, and action-oriented. The current date and time is {{ $now.toISO() }}. The user's name is {{ $json.message.from.first_name }}.\\n\\nYou have these tools, backed by persistent storage:\\n- create_task: add a task (name, deadline, priority high/medium/low, category, notes)\\n- get_tasks: list tasks filtered by status (Pending/In Progress/Completed/Skipped/Deferred/Cancelled) or all\\n- complete_task: mark a task done by its task_name\\n- update_task: change a task's deadline, priority, status, or notes\\n- delete_task: cancel/remove a task (sets status to Cancelled)\\n- create_reminder: schedule a timed reminder (text and remind_at as ISO datetime, e.g. 2025-01-15T20:00:00+05:30)\\n- save_memory: remember a fact for the user\\n- search_memory: recall something previously saved\\n- get_schedule: get pending tasks in order to build a plan\\n\\nGuidelines:\\n1. When the user mentions something to do, create a task. Infer priority and deadline when possible.\\n2. Distinguish certainty: \\\"maybe I'll study\\\" is low commitment — ask if they want a task. \\\"I must submit by Friday\\\" → create immediately with high priority.\\n3. When the user says \\\"remind me at [time]\\\", use create_reminder with correct ISO datetime AND create a task if appropriate.\\n4. When reporting completion, acknowledge briefly. Ask what they accomplished if it was a study/work session.\\n5. When asked \\\"what should I do?\\\" or \\\"plan my evening\\\", read tasks via get_schedule, check deadlines, consider priority, and give a specific recommendation with brief reasoning.\\n6. When rescheduling, suggest a specific new time and use update_task to change the deadline.\\n7. Support these statuses: Pending, In Progress, Completed, Skipped, Deferred, Cancelled.\\n8. When the user seems overwhelmed, suggest breaking tasks into smaller pieces or deferring low-priority items.\\n9. If the user says they skipped or can't do something, ask why briefly (too tired, no time, blocked, etc.) and update the task status to Skipped or Deferred.\\n10. Never invent tasks or facts you did not store. Confirm actions briefly. Keep replies short, use Markdown, emoji sparingly.",
+          "maxIterations": 10
+        }
+      },
+      "id": "928df8f8-2f34-4f61-adb0-71148310c493",
+      "name": "PRAX Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [600, 200]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "71f56664-cb7e-404b-816c-beca213b665c",
+      "name": "Telegram — Send Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1300, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "7ZqTLt9qkNgN4xhi",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 2000,
+          "temperature": 0.4
+        }
+      },
+      "id": "67282fea-c5c4-4b7e-9ba9-c0dbcf4ff570",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [200, 440],
+      "credentials": {
+        "openRouterApi": {
+          "id": "4TJuwBsfKK20PYxk",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "contextWindowLength": 10
+      },
+      "id": "3c7c80bc-af1c-4daa-8962-f24d14f7b78f",
+      "name": "Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [350, 440]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7y54Jtkpx5YvlOh7",
+          "cachedResultName": "PRAX Tasks"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "task_id": "={{ $now.toMillis() }}",
+            "chat_id": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+            "task_name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('task_name', 'Short name of the task') }}",
+            "deadline": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('deadline', 'Deadline in ISO date or natural language, empty if none') }}",
+            "priority": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('priority', 'Priority: high, medium, or low') }}",
+            "category": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('category', 'Category or area, empty if unknown') }}",
+            "notes": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('notes', 'Any extra details, empty if none') }}",
+            "status": "Pending",
+            "created_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "task_id", "displayName": "task_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "chat_id", "displayName": "chat_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "task_name", "displayName": "task_name", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "deadline", "displayName": "deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "priority", "displayName": "priority", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "category", "displayName": "category", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "notes", "displayName": "notes", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "created_at", "displayName": "created_at", "required": false, "defaultMatch": false, "display": true, "type": "dateTime", "readOnly": false, "removed": false },
+            { "id": "completed_at", "displayName": "completed_at", "required": false, "defaultMatch": false, "display": true, "type": "dateTime", "readOnly": false, "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "acbc8a56-e67a-4f87-82db-5736818f4d14",
+      "name": "create_task",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [500, 440]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7y54Jtkpx5YvlOh7",
+          "cachedResultName": "PRAX Tasks"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('status', \"Task status to filter by: 'Pending', 'In Progress', 'Completed', 'Skipped', 'Deferred', 'Cancelled'. Leave empty for all.\") }}"
+            }
+          ]
+        },
+        "returnAll": true,
+        "orderBy": true,
+        "orderByColumn": "created_at"
+      },
+      "id": "f2b7a644-8459-41ba-9c30-efe780479325",
+      "name": "get_tasks",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [640, 440]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7y54Jtkpx5YvlOh7",
+          "cachedResultName": "PRAX Tasks"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            },
+            {
+              "keyName": "task_name",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('task_name', 'Exact name of the task to mark completed') }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "Completed",
+            "completed_at": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            { "id": "status", "displayName": "status", "type": "string", "canBeUsedToMatch": true, "display": true },
+            { "id": "completed_at", "displayName": "completed_at", "type": "dateTime", "canBeUsedToMatch": true, "display": true }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5063f593-91b6-4366-b3a4-9f580fdde3ce",
+      "name": "complete_task",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [780, 440]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7y54Jtkpx5YvlOh7",
+          "cachedResultName": "PRAX Tasks"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            },
+            {
+              "keyName": "task_name",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('task_name', 'Exact name of the task to update') }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "deadline": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('new_deadline', 'New deadline in ISO date or natural language. Pass current value if not changing.') }}",
+            "priority": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('new_priority', 'New priority: high, medium, or low. Pass current value if not changing.') }}",
+            "status": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('new_status', 'New status: Pending, In Progress, Skipped, Deferred. Pass current value if not changing.') }}",
+            "notes": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('new_notes', 'Updated notes. Pass current value if not changing.') }}"
+          },
+          "schema": [
+            { "id": "deadline", "displayName": "deadline", "type": "string", "canBeUsedToMatch": true, "display": true },
+            { "id": "priority", "displayName": "priority", "type": "string", "canBeUsedToMatch": true, "display": true },
+            { "id": "status", "displayName": "status", "type": "string", "canBeUsedToMatch": true, "display": true },
+            { "id": "notes", "displayName": "notes", "type": "string", "canBeUsedToMatch": true, "display": true }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "update_task",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [920, 440]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7y54Jtkpx5YvlOh7",
+          "cachedResultName": "PRAX Tasks"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            },
+            {
+              "keyName": "task_name",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('task_name', 'Exact name of the task to cancel/delete') }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "Cancelled"
+          },
+          "schema": [
+            { "id": "status", "displayName": "status", "type": "string", "canBeUsedToMatch": true, "display": true }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "delete_task",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [1060, 440]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_REMINDERS_TABLE_ID",
+          "cachedResultName": "PRAX Reminders"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "reminder_id": "={{ $now.toMillis() }}",
+            "chat_id": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+            "reminder_text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('reminder_text', 'What to remind the user about') }}",
+            "remind_at": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('remind_at', 'When to send the reminder in ISO datetime format, e.g. 2025-08-21T20:00:00+05:30') }}",
+            "status": "Pending",
+            "created_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "reminder_id", "displayName": "reminder_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "chat_id", "displayName": "chat_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "reminder_text", "displayName": "reminder_text", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "remind_at", "displayName": "remind_at", "required": false, "defaultMatch": false, "display": true, "type": "dateTime", "readOnly": false, "removed": false },
+            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "created_at", "displayName": "created_at", "required": false, "defaultMatch": false, "display": true, "type": "dateTime", "readOnly": false, "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "name": "create_reminder",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [500, 600]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "P8lQbhwvYzzhxhwx",
+          "cachedResultName": "PRAX Memories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+            "mem_key": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('mem_key', 'Short label for what is being remembered') }}",
+            "mem_value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('mem_value', 'The information to remember') }}",
+            "created_at": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            { "id": "chat_id", "displayName": "chat_id", "type": "string", "canBeUsedToMatch": true, "display": true },
+            { "id": "mem_key", "displayName": "mem_key", "type": "string", "canBeUsedToMatch": true, "display": true },
+            { "id": "mem_value", "displayName": "mem_value", "type": "string", "canBeUsedToMatch": true, "display": true },
+            { "id": "created_at", "displayName": "created_at", "type": "dateTime", "canBeUsedToMatch": true, "display": true }
+          ]
+        },
+        "options": {}
+      },
+      "id": "df0f921a-c263-49cb-817c-ff5a40972944",
+      "name": "save_memory",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [640, 600]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "P8lQbhwvYzzhxhwx",
+          "cachedResultName": "PRAX Memories"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            },
+            {
+              "keyName": "mem_key",
+              "condition": "like",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('search_term', 'Term to search for in the memory key') }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "d28215a4-1aaf-4c49-9c8f-203128a345ad",
+      "name": "search_memory",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [780, 600]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7y54Jtkpx5YvlOh7",
+          "cachedResultName": "PRAX Tasks"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "Pending"
+            }
+          ]
+        },
+        "returnAll": true,
+        "orderBy": true,
+        "orderByColumn": "created_at",
+        "orderByDirection": "ASC"
+      },
+      "id": "60db291f-24f8-477c-a0b5-f1bd933f0044",
+      "name": "get_schedule",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [920, 600]
+    },
+    {
+      "parameters": {
+        "outputFieldName": "CurrentTime",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [1060, 600],
+      "id": "cb4e7a5b-c513-48f8-81ab-5960ddeb03ac",
+      "name": "Date & Time"
+    },
+
+
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+      "name": "Schedule — Morning Briefing",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 900]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Generate the morning briefing. Current date/time: {{ $now.toISO() }}. Read all pending tasks and create a prioritized daily plan for the user.",
+        "options": {
+          "systemMessage": "=You are PRAX's morning briefing module. Current time: {{ $now.toISO() }}.\\n\\nYour job: Read the user's pending tasks using get_tasks_morning. Then generate a concise, motivating morning plan.\\n\\nFormat rules:\\n- Order by: deadline urgency first, then priority (high > medium > low)\\n- Mark tasks due today or tomorrow with ⚠️\\n- Suggest top 3 focus areas for the day\\n- Keep under 15 lines\\n- Use Markdown formatting\\n- Start with: ☀️ **Good morning!** Here's your plan for today:",
+          "maxIterations": 5
+        }
+      },
+      "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "name": "Morning Briefing Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [600, 900]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_YOUR_CHAT_ID",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "f6a7b8c9-d0e1-2345-fabc-456789012345",
+      "name": "Telegram — Morning Briefing",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1300, 900],
+      "credentials": {
+        "telegramApi": {
+          "id": "7ZqTLt9qkNgN4xhi",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.3
+        }
+      },
+      "id": "a7b8c9d0-e1f2-3456-abcd-567890123456",
+      "name": "OpenRouter (Morning)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [250, 1120],
+      "credentials": {
+        "openRouterApi": {
+          "id": "4TJuwBsfKK20PYxk",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7y54Jtkpx5YvlOh7",
+          "cachedResultName": "PRAX Tasks"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "REPLACE_YOUR_CHAT_ID"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "Pending"
+            }
+          ]
+        },
+        "returnAll": true,
+        "orderBy": true,
+        "orderByColumn": "created_at",
+        "orderByDirection": "ASC"
+      },
+      "id": "b8c9d0e1-f2a3-4567-bcde-678901234567",
+      "name": "get_tasks_morning",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [450, 1120]
+    },
+    {
+      "parameters": {
+        "outputFieldName": "CurrentTime",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [620, 1120],
+      "id": "c9d0e1f2-a3b4-5678-cdef-789012345678",
+      "name": "Date & Time (Morning)"
+    },
+
+
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "d0e1f2a3-b4c5-6789-defa-890123456789",
+      "name": "Schedule — Reminder Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 1400]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Check for due reminders now. Current date/time: {{ $now.toISO() }}. Fetch all pending reminders and compare their remind_at time against the current time.",
+        "options": {
+          "systemMessage": "=You are PRAX's reminder checker. Current time: {{ $now.toISO() }}.\\n\\nYour job:\\n1. Use get_due_reminders to fetch all reminders with status Pending.\\n2. For each reminder, compare its remind_at datetime to the current time.\\n3. If remind_at is in the PAST (the time has passed), this reminder is DUE — include it in your output and then use mark_reminder_sent to update its status to Sent.\\n4. If remind_at is in the FUTURE, skip it.\\n5. If NO reminders are due, respond with exactly: NO_DUE_REMINDERS\\n6. If reminders ARE due, format your response as:\\n   ⏰ **Reminder:** [reminder text]\\n   (one per due reminder, separated by newlines)\\n\\nDo NOT include any explanation or extra text — only the reminder notifications or NO_DUE_REMINDERS.",
+          "maxIterations": 5
+        }
+      },
+      "id": "e1f2a3b4-c5d6-7890-efab-901234567890",
+      "name": "Reminder Check Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [600, 1400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-reminder-1",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "NO_DUE_REMINDERS",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d6e7f8a9-b0c1-2345-defa-456789012345",
+      "name": "Has Due Reminders?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1000, 1400]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_YOUR_CHAT_ID",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "f2a3b4c5-d6e7-8901-fabc-012345678901",
+      "name": "Telegram — Reminder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1300, 1400],
+      "credentials": {
+        "telegramApi": {
+          "id": "7ZqTLt9qkNgN4xhi",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.1
+        }
+      },
+      "id": "a3b4c5d6-e7f8-9012-abcd-123456789012",
+      "name": "OpenRouter (Reminder)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [250, 1620],
+      "credentials": {
+        "openRouterApi": {
+          "id": "4TJuwBsfKK20PYxk",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_REMINDERS_TABLE_ID",
+          "cachedResultName": "PRAX Reminders"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "keyValue": "Pending"
+            }
+          ]
+        },
+        "returnAll": true,
+        "orderBy": true,
+        "orderByColumn": "remind_at",
+        "orderByDirection": "ASC"
+      },
+      "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",
+      "name": "get_due_reminders",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [450, 1620]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_REMINDERS_TABLE_ID",
+          "cachedResultName": "PRAX Reminders"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reminder_text",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('reminder_text', 'Exact text of the reminder to mark as sent') }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "Pending"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "Sent"
+          },
+          "schema": [
+            { "id": "status", "displayName": "status", "type": "string", "canBeUsedToMatch": true, "display": true }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c5d6e7f8-a9b0-1234-cdef-345678901234",
+      "name": "mark_reminder_sent",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [620, 1620]
+    },
+    {
+      "parameters": {
+        "outputFieldName": "CurrentTime",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [790, 1620],
+      "id": "e7f8a9b0-c1d2-3456-efab-567890123456",
+      "name": "Date & Time (Reminder)"
+    },
+
+
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 17 * * *"
+            }
+          ]
+        }
+      },
+      "id": "f8a9b0c1-d2e3-4567-fabc-678901234567",
+      "name": "Schedule — Evening Review",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 1900]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Generate the evening review. Current date/time: {{ $now.toISO() }}. Read all tasks and summarize the user's day — what was completed and what remains pending.",
+        "options": {
+          "systemMessage": "=You are PRAX's evening review module. Current time: {{ $now.toISO() }}.\\n\\nYour job: Read all tasks using get_tasks_evening. Generate a concise evening summary.\\n\\nFormat rules:\\n- List tasks completed today under ✅ **Completed**\\n- List tasks still pending under 📋 **Still Pending**\\n- Highlight any deadlines in the next 48 hours with ⚠️\\n- End with 1-2 sentence suggestion for tomorrow's top priority\\n- Be encouraging, not judgmental. If tasks were missed, be understanding.\\n- Keep under 15 lines\\n- Use Markdown\\n- Start with: 🌙 **Evening Review**",
+          "maxIterations": 5
+        }
+      },
+      "id": "a9b0c1d2-e3f4-5678-abcd-789012345678",
+      "name": "Evening Review Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [600, 1900]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_YOUR_CHAT_ID",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "b0c1d2e3-f4a5-6789-bcde-890123456789",
+      "name": "Telegram — Evening Review",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1300, 1900],
+      "credentials": {
+        "telegramApi": {
+          "id": "7ZqTLt9qkNgN4xhi",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.3
+        }
+      },
+      "id": "c1d2e3f4-a5b6-7890-cdef-901234567890",
+      "name": "OpenRouter (Evening)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [250, 2120],
+      "credentials": {
+        "openRouterApi": {
+          "id": "4TJuwBsfKK20PYxk",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7y54Jtkpx5YvlOh7",
+          "cachedResultName": "PRAX Tasks"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "REPLACE_YOUR_CHAT_ID"
+            }
+          ]
+        },
+        "returnAll": true,
+        "orderBy": true,
+        "orderByColumn": "created_at",
+        "orderByDirection": "DESC"
+      },
+      "id": "d2e3f4a5-b6c7-8901-defa-012345678901",
+      "name": "get_tasks_evening",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [450, 2120]
+    },
+    {
+      "parameters": {
+        "outputFieldName": "CurrentTime",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [620, 2120],
+      "id": "e3f4a5b6-c7d8-9012-efab-123456789012",
+      "name": "Date & Time (Evening)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PRAX Agent": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create_task": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_tasks": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "complete_task": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_task": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_task": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create_reminder": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save_memory": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "search_memory": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_schedule": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date & Time": {
+      "ai_tool": [
+        [
+          {
+            "node": "PRAX Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+
+    "Schedule — Morning Briefing": {
+      "main": [
+        [
+          {
+            "node": "Morning Briefing Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Morning Briefing Agent": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Morning Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter (Morning)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Morning Briefing Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_tasks_morning": {
+      "ai_tool": [
+        [
+          {
+            "node": "Morning Briefing Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date & Time (Morning)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Morning Briefing Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+
+    "Schedule — Reminder Check": {
+      "main": [
+        [
+          {
+            "node": "Reminder Check Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder Check Agent": {
+      "main": [
+        [
+          {
+            "node": "Has Due Reminders?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Due Reminders?": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter (Reminder)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Reminder Check Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_due_reminders": {
+      "ai_tool": [
+        [
+          {
+            "node": "Reminder Check Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mark_reminder_sent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Reminder Check Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date & Time (Reminder)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Reminder Check Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+
+    "Schedule — Evening Review": {
+      "main": [
+        [
+          {
+            "node": "Evening Review Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evening Review Agent": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Evening Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter (Evening)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Evening Review Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_tasks_evening": {
+      "ai_tool": [
+        [
+          {
+            "node": "Evening Review Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date & Time (Evening)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Evening Review Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "v2-00000000-0000-0000-0000-000000000001",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b942c2dfecd60c4d1e5262e23257a2eae7953f6f9d2eca06e7b0db29aa8076d5"
+  },
+  "nodeGroups": [],
+  "tags": []
+}
